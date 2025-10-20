@@ -4,20 +4,22 @@ const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, ChannelTyp
 const express = require('express');
 const axios = require('axios');
 
+// ------------------- Express Server for Render -------------------
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running'));
 app.listen(process.env.PORT || 3000, () => console.log('✅ Express server running'));
 
-const DISCORD_BOT_TOKEN = process.env.DISCORD_TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID;
+// ------------------- Environment Variables -------------------
+const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID; // Required for global commands
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
-if (!DISCORD_BOT_TOKEN || !OPENROUTER_API_KEY) {
-  console.error('❌ Missing environment variables');
+if (!DISCORD_TOKEN || !CLIENT_ID || !OPENROUTER_API_KEY) {
+  console.error('❌ Missing DISCORD_TOKEN, CLIENT_ID, or OPENROUTER_API_KEY');
   process.exit(1);
 }
 
+// ------------------- Discord Client -------------------
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -35,14 +37,14 @@ const commands = [
     .addIntegerOption(opt => opt.setName('dryrun').setDescription('1 = preview only, 0 = create').setRequired(false))
 ].map(c => c.toJSON());
 
-const rest = new REST({ version: '10' }).setToken(DISCORD_BOT_TOKEN);
+const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
 
 (async () => {
   try {
-    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
-    console.log('✅ Slash commands registered');
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+    console.log('✅ Global commands registered (may take up to 1 hour to appear)');
   } catch (err) {
-    console.error('❌ Failed to register commands:', err);
+    console.error('❌ Failed to register global commands:', err);
   }
 })();
 
@@ -70,19 +72,19 @@ async function callOpenRouter(prompt) {
       );
       return res.data.choices[0]?.message?.content || '⚠️ No response';
     } catch (err) {
-      console.warn(`OpenRouter attempt ${i+1} failed:`, err.message);
+      console.warn(`OpenRouter attempt ${i + 1} failed:`, err.message);
       await new Promise(r => setTimeout(r, 1000));
     }
   }
   throw new Error('OpenRouter API unreachable after 3 attempts');
 }
 
-// ------------------- Helper -------------------
+// ------------------- Helpers -------------------
 function sanitizeName(name) {
   return name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').slice(0, 100);
 }
 
-// ------------------- Message AI Mention -------------------
+// ------------------- Message @Mention AI -------------------
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
@@ -110,13 +112,14 @@ client.on('interactionCreate', async interaction => {
 
   try {
     const modelOutput = await callOpenRouter(prompt);
-    // Extract JSON array from model output
+
+    // Extract JSON array
     const jsonMatch = modelOutput.match(/\[.*\]/s);
     const jsonText = jsonMatch ? jsonMatch[0] : modelOutput;
     let channels = JSON.parse(jsonText);
 
     channels = channels.map((c, idx) => ({
-      name: sanitizeName(c.name || `channel-${idx+1}`),
+      name: sanitizeName(c.name || `channel-${idx + 1}`),
       type: c.type === 'voice' ? 'voice' : c.type === 'category' ? 'category' : 'text',
       topic: c.topic || null,
       parent: c.parent || null
@@ -166,4 +169,4 @@ client.once('ready', () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
-client.login(DISCORD_BOT_TOKEN);
+client.login(DISCORD_TOKEN);
