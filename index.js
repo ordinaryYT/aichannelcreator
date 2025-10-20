@@ -113,13 +113,14 @@ client.on('interactionCreate', async interaction => {
   try {
     const modelOutput = await callOpenRouter(prompt);
 
-    // Extract JSON array
+    // Extract JSON array from AI
     const jsonMatch = modelOutput.match(/\[.*\]/s);
     const jsonText = jsonMatch ? jsonMatch[0] : modelOutput;
     let channels = JSON.parse(jsonText);
 
+    // Sanitize names and map types
     channels = channels.map((c, idx) => ({
-      name: sanitizeName(c.name || `channel-${idx + 1}`),
+      name: sanitizeName(c.name || `channel-${idx+1}`),
       type: c.type === 'voice' ? 'voice' : c.type === 'category' ? 'category' : 'text',
       topic: c.topic || null,
       parent: c.parent || null
@@ -130,18 +131,23 @@ client.on('interactionCreate', async interaction => {
       return interaction.editReply(`**Preview (dry run)**\n${preview}`);
     }
 
-    // Create categories first
+    // 1️⃣ Create categories first
     const categoryMap = {};
-    for (const ch of channels) {
-      if (ch.type === 'category') {
-        const created = await interaction.guild.channels.create({ name: ch.name, type: ChannelType.GuildCategory });
+    for (const ch of channels.filter(c => c.type === 'category')) {
+      try {
+        const created = await interaction.guild.channels.create({
+          name: ch.name,
+          type: ChannelType.GuildCategory
+        });
         categoryMap[ch.name] = created.id;
+      } catch (err) {
+        console.error('❌ Category creation error:', err);
       }
     }
 
+    // 2️⃣ Create text/voice channels under categories
     const createdChannels = [];
-    for (const ch of channels) {
-      if (ch.type === 'category') continue;
+    for (const ch of channels.filter(c => c.type !== 'category')) {
       const options = {
         name: ch.name,
         type: ch.type === 'voice' ? ChannelType.GuildVoice : ChannelType.GuildText,
@@ -152,11 +158,16 @@ client.on('interactionCreate', async interaction => {
         const created = await interaction.guild.channels.create(options);
         createdChannels.push({ name: created.name, type: ch.type });
       } catch (err) {
+        console.error('❌ Channel creation error:', err);
         createdChannels.push({ name: ch.name, error: err.message });
       }
     }
 
-    const resultLines = createdChannels.map(c => c.error ? `⚠️ ${c.name} — ${c.error}` : `✅ ${c.type} ${c.name}`).join('\n');
+    // 3️⃣ Report results
+    const resultLines = createdChannels.map(c =>
+      c.error ? `⚠️ ${c.name} — ${c.error}` : `✅ ${c.type} ${c.name}`
+    ).join('\n');
+
     interaction.editReply(`**Channels Created**\n${resultLines}`);
   } catch (err) {
     console.error('❌ Command Error:', err);
