@@ -1,0 +1,15 @@
+{
+  "name": "discord-openrouter-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.15.3",
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5",
+    "node-fetch": "^2.7.0"
+  }
+}
