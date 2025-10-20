@@ -2,14 +2,11 @@
   "name": "discord-openrouter-bot",
   "version": "1.0.0",
   "main": "index.js",
-  "type": "commonjs",
-  "scripts": {
-    "start": "node index.js"
-  },
+  "scripts": { "start": "node index.js" },
   "dependencies": {
     "discord.js": "^14.15.3",
+    "axios": "^1.6.0",
     "express": "^4.19.2",
-    "dotenv": "^16.4.5",
-    "node-fetch": "^2.7.0"
+    "dotenv": "^16.4.5"
   }
 }
